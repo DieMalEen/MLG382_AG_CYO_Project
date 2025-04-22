@@ -16,10 +16,10 @@ def load_data():
     return train, test
 
 def prepare_data(train, test):  
-    x_train = train.drop(columns=["RainTomorrow", "Date", "Location"])
+    x_train = train.drop(columns=["RainTomorrow"])
     y_train = train["RainTomorrow"] #Dependent variable for "training"
 
-    x_test = test.drop(columns=["RainTomorrow", "Date", "Location"])
+    x_test = test.drop(columns=["RainTomorrow"])
     y_test = test["RainTomorrow"] #Dependent variable for testing accuracy
 
         # Combine train and test to ensure consistent encoding
@@ -33,7 +33,7 @@ def prepare_data(train, test):
     # Split back into train/test
     x_train = combined.iloc[:len(x_train), :].copy()
     x_test = combined.iloc[len(x_train):, :].copy()
-    
+
     return x_train, y_train, x_test, y_test
 
 
@@ -160,7 +160,7 @@ def main():
     train_data, test_data = load_data()
     x_train, y_train, x_test, y_test = prepare_data(train_data, test_data)
 
-    #logistic_regression_graph(x_train, y_train, x_test, y_test)
+    logistic_regression_graph(x_train, y_train, x_test, y_test)
 
     y_pred_logreg = run_logistic_regression(x_train, y_train, x_test, y_test)
     save_predictions(test_data, y_pred_logreg, "regression")
