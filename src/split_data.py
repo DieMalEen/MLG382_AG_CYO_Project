@@ -38,6 +38,13 @@ df['Day_cos'] = np.cos(2 * np.pi * df['DayOfYear'] / 365)
 # Interaction feature
 df['TempHumidInteraction'] = df['Temp3pm'] * df['Humidity3pm']
 
+#Get day temp average
+df['DayAvgTemp'] = (df['MinTemp'] + df['MaxTemp']) / 2
+
+# Using pandas qcut to split TempSumHalved into quantile-based bins (equal frequency bins)
+num_categories = 5  # Number of categories (you can change this to your preference)
+df['TempCategory'] = pd.qcut(df['DayAvgTemp'], q=num_categories, labels=['Very Cold', 'Cold', 'Medium', 'Warm', 'Very Warm'])
+
 # Drop rows with missing values caused by lag/rolling features
 df.dropna(inplace=True)
 
