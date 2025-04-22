@@ -16,12 +16,24 @@ def load_data():
     return train, test
 
 def prepare_data(train, test):  
-    x_train = train.drop(columns=["prognosis"])
-    y_train = train["prognosis"] #Dependent variable for "training"
+    x_train = train.drop(columns=["RainTomorrow", "Date", "Location"])
+    y_train = train["RainTomorrow"] #Dependent variable for "training"
 
-    x_test = test.drop(columns=["prognosis"])
-    y_test = test["prognosis"] #Dependent variable for testing accuracy
+    x_test = test.drop(columns=["RainTomorrow", "Date", "Location"])
+    y_test = test["RainTomorrow"] #Dependent variable for testing accuracy
 
+        # Combine train and test to ensure consistent encoding
+    combined = pd.concat([x_train, x_test], axis=0)
+
+    # Encode categorical columns
+    for col in combined.select_dtypes(include=["object"]).columns:
+        le = LabelEncoder()
+        combined[col] = le.fit_transform(combined[col].astype(str))
+
+    # Split back into train/test
+    x_train = combined.iloc[:len(x_train), :].copy()
+    x_test = combined.iloc[len(x_train):, :].copy()
+    
     return x_train, y_train, x_test, y_test
 
 
@@ -66,7 +78,7 @@ def logistic_regression_graph(x_train, y_train, x_test, y_test):
     
     scaler = StandardScaler()
     x_train_scaled = scaler.fit_transform(x_train)
-    x_test_scaled = scaler.fit_transform(x_test)
+    x_test_scaled = scaler.transform(x_test)
 
     # Train model
     model = LogisticRegression(solver='liblinear', warm_start=True)
@@ -139,7 +151,7 @@ def run_xgboost(x_train, y_train, x_test, y_test):
 def save_predictions(test, y_pred, model_name): # Predict and save models test_data.csv predictions
     df = test.copy()
     df[f"Predicted_{model_name}"] = y_pred
-    df["Match"] = df["prognosis"] == df[f"Predicted_{model_name}"]
+    df["Match"] = df["RainTomorrow"] == df[f"Predicted_{model_name}"]
     df["Match"] = df["Match"].apply(lambda x: "True" if x else "False")
     df = df.sort_values(by="Match").reset_index(drop=True)
     df.to_csv(f"artifacts/{model_name}_predictions.csv", index=False)
