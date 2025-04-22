@@ -2,6 +2,7 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from sklearn.multioutput import MultiOutputClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
@@ -16,13 +17,13 @@ def load_data():
     return train, test
 
 def prepare_data(train, test):  
-    x_train = train.drop(columns=["RainTomorrow"])
-    y_train = train["RainTomorrow"] #Dependent variable for "training"
+    x_train = train.drop(columns=["TempCategory", "RainTomorrow", "DayAvgTemp", "MinTemp", "MaxTemp", "Temp3pm", "Temp9am"])
+    y_train = train[["TempCategory"]]  # Add multiple target variables here
 
-    x_test = test.drop(columns=["RainTomorrow"])
-    y_test = test["RainTomorrow"] #Dependent variable for testing accuracy
+    x_test = test.drop(columns=["TempCategory", "RainTomorrow", "DayAvgTemp", "MinTemp", "MaxTemp", "Temp3pm", "Temp9am"])
+    y_test = test[["TempCategory"]]  # Add multiple target variables here
 
-        # Combine train and test to ensure consistent encoding
+    # Combine train and test to ensure consistent encoding
     combined = pd.concat([x_train, x_test], axis=0)
 
     # Encode categorical columns
@@ -49,9 +50,13 @@ def run_logistic_regression(x_train, y_train, x_test, y_test):
         solver='saga',
         verbose=1,
         n_jobs=-1,
-        warm_start=True)     # Train model
+        warm_start=True
+    )     # Train model
 
+    model = MultiOutputClassifier(model)
     model.fit(x_train_scaled, y_train)
+
+    y_pred = model.predict(x_test_scaled)
 
     y_pred = model.predict(x_test_scaled)
 
@@ -148,28 +153,33 @@ def run_xgboost(x_train, y_train, x_test, y_test):
         pickle.dump(model, f)
     return y_pred
 
-def save_predictions(test, y_pred, model_name): # Predict and save models test_data.csv predictions
+def save_predictions(test, y_pred, model_name):  # Predict and save models test_data.csv predictions
     df = test.copy()
-    df[f"Predicted_{model_name}"] = y_pred
-    df["Match"] = df["RainTomorrow"] == df[f"Predicted_{model_name}"]
-    df["Match"] = df["Match"].apply(lambda x: "True" if x else "False")
-    df = df.sort_values(by="Match").reset_index(drop=True)
+    df[f"Predicted_{model_name}_RainTomorrow"] = y_pred[:, 0]
+    df[f"Predicted_{model_name}_TempCategory"] = y_pred[:, 1]
+    df["Match_RainTomorrow"] = df["RainTomorrow"] == df[f"Predicted_{model_name}_RainTomorrow"]
+    df["Match_"] = df["TempCategory"] == df[f"Predicted_{model_name}_TempCategory"]
+    
+    df["Match_RainTomorrow"] = df["Match_RainTomorrow"].apply(lambda x: "True" if x else "False")
+    df["Match_TempCategory"] = df["Match_TempCategory"].apply(lambda x: "True" if x else "False")
+    
+    df = df.sort_values(by="Match_RainTomorrow").reset_index(drop=True)
     df.to_csv(f"artifacts/{model_name}_predictions.csv", index=False)
 
 def main():
     train_data, test_data = load_data()
     x_train, y_train, x_test, y_test = prepare_data(train_data, test_data)
 
-    logistic_regression_graph(x_train, y_train, x_test, y_test)
+    #logistic_regression_graph(x_train, y_train, x_test, y_test)
 
     y_pred_logreg = run_logistic_regression(x_train, y_train, x_test, y_test)
-    save_predictions(test_data, y_pred_logreg, "regression")
+    #save_predictions(test_data, y_pred_logreg, "regression")
 
     y_pred_rf = run_random_forest(x_train, y_train, x_test, y_test)
-    save_predictions(test_data, y_pred_rf, "random_forest")
+    #save_predictions(test_data, y_pred_rf, "random_forest")
 
     y_pred_xgb = run_xgboost(x_train, y_train, x_test, y_test)
-    save_predictions(test_data, y_pred_xgb, "xgboost")
+    #save_predictions(test_data, y_pred_xgb, "xgboost")
     
 if __name__ == "__main__":
     main()
