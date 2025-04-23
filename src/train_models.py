@@ -145,7 +145,7 @@ def save_predictions(test, y_pred, model_name):
 
     # Map numerical predictions back to strings
     rain_map = {0: "no", 1: "yes"}
-    temp_map = {0: "cold", 1: "mild", 2: "hot"}
+    temp_map = {0: "very cold", 1: "cold", 2: "medium", 3: "warm", 4: "very warm"}
 
     y_pred["RainTomorrow"] = y_pred["RainTomorrow"].map(rain_map)
     y_pred["TempCategory"] = y_pred["TempCategory"].map(temp_map)
