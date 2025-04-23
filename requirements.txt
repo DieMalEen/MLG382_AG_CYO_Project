@@ -4,6 +4,6 @@ scikit-learn
 xgboost
 seaborn
 numpy
-pytorch
+torch
 dash
 gunicorn
