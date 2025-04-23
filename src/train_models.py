@@ -65,9 +65,8 @@ def run_logistic_regression(x_train, y_train, x_test, y_test):
         y_pred = model.predict(x_test_scaled)
         y_preds[col] = y_pred
 
-        print(f"\nLogistic Regression Accuracy for {col}: {round(accuracy_score(y_test[col], y_pred), 4)}")
-        print(f"\nClassification Report for {col}:\n{classification_report(y_test[col], y_pred)}")
-        print(f"\nConfusion Matrix for {col}:\n{confusion_matrix(y_test[col], y_pred)}")
+        print(f"\nLogistic Regression Accuracy ({col}): {round(accuracy_score(y_test[col], y_pred), 4)}")
+        print(f"\nClassification Report{col}:\n{classification_report(y_test[col], y_pred)}")
 
         models[col] = model
 
@@ -82,33 +81,37 @@ def run_logistic_regression(x_train, y_train, x_test, y_test):
     return y_pred_df
     
 def run_random_forest(x_train, y_train, x_test, y_test):
-    base_model = RandomForestClassifier(
-        n_estimators=50,
-        max_depth=10,
-        n_jobs=1, 
-        random_state=50
-    )
+    models = {}
+    y_preds = {}
 
-    model = MultiOutputClassifier(base_model)
-    model.fit(x_train, y_train)
+    for col in y_train.columns:
+        print(f"\nTraining Random Forest for target: {col}")
+        model = RandomForestClassifier(
+            n_estimators=50,
+            max_depth=10,
+            n_jobs=-1,
+            random_state=50
+        )
 
-    y_pred = model.predict(x_test)
-    y_pred_df = pd.DataFrame(y_pred, columns=y_test.columns)
+        # Fit model on features and the specific target column
+        model.fit(x_train, y_train[col])
+        y_pred = model.predict(x_test)
+        y_preds[col] = y_pred
 
-    print("\nRandom Forest Accuracy (per label):")
-    for col in y_test.columns:
-        acc = accuracy_score(y_test[col], y_pred_df[col])
-        print(f"{col}: {round(acc, 4)}")
+        # Evaluation metrics
+        print(f"\nRandom Forest Accuracy ({col}): {round(accuracy_score(y_test[col], y_pred), 4)}")
+        print(f"\nClassification Report{col}:\n{classification_report(y_test[col], y_pred)}")
 
-    print("\nClassification Report (Random Forest):")
-    for col in y_test.columns:
-        print(f"\n--- {col} ---")
-        print(classification_report(y_test[col], y_pred_df[col]))
+        models[col] = model
 
-    with open("artifacts/random_forest_model.pkl", "wb") as f:
-        pickle.dump(model, f)
+    # Save models dictionary to artifacts/random_forest_models.pkl
+    with open("artifacts/random_forest_models.pkl", "wb") as f:
+        pickle.dump(models, f)
 
+    # Combine predictions into a DataFrame and return
+    y_pred_df = pd.DataFrame(y_preds)
     return y_pred_df
+
 
 def run_xgboost(x_train, y_train, x_test, y_test):
     preds = []
@@ -117,7 +120,7 @@ def run_xgboost(x_train, y_train, x_test, y_test):
         model = XGBClassifier(
             eval_metric='mlogloss', 
             n_estimators=200, 
-            max_depth=5, 
+            max_depth=10, 
             learning_rate=0.1,
             random_state=50
         )
@@ -130,7 +133,7 @@ def run_xgboost(x_train, y_train, x_test, y_test):
             pickle.dump(model, f)
 
         print(f"\nXGBoost Accuracy ({col}):", round(accuracy_score(y_test[col], pred), 4))
-        print(f"\nClassification Report (XGBoost - {col}):")
+        print(f"\nClassification Report:")
         print(classification_report(y_test[col], pred))
 
     y_pred = np.vstack(preds).T
@@ -141,7 +144,7 @@ def save_predictions(test, y_pred, model_name):
 
     # Convert NumPy array to DataFrame if needed
     if isinstance(y_pred, np.ndarray):
-        y_pred = pd.DataFrame(y_pred, columns=["RainTomorrow", "TempCategory"])
+        y_pred = pd.DataFrame(y_pred, columns=["RainTomorrow", "TempCategory"], index=df.index)
 
     # Map numerical predictions back to strings
     rain_map = {0: "no", 1: "yes"}
@@ -183,8 +186,6 @@ def save_predictions(test, y_pred, model_name):
 def main():
     train_data, test_data = load_data()
     x_train, y_train, x_test, y_test = prepare_data(train_data, test_data)
-
-    #logistic_regression_graph(x_train, y_train, x_test, y_test)
 
     y_pred_logreg = run_logistic_regression(x_train, y_train, x_test, y_test)
     save_predictions(test_data, y_pred_logreg, "regression")

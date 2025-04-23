@@ -1,62 +1,75 @@
-import pickle
 import pandas as pd
 import numpy as np
+import pickle
 
-# Example input string from user
-student_input = "1136,15,0,3,1,10.531898851795788,12,0,2,1,0,0,0,2.122638529628868,3.0"
+# Load log models and scaler
+with open("artifacts/logistic_regression_models.pkl", "rb") as f:
+    log_models = pickle.load(f)
 
-def load_model_and_scaler(model_type):
-    model_path = f"artifacts/{model_type}_model.pkl"
-    with open(model_path, "rb") as f:
-        model = pickle.load(f)
-    
-    scaler = None
-    if model_type in ["regression", "deep_learning"]:
-        with open("artifacts/regression_scaler.pkl", "rb") as f:
-            scaler = pickle.load(f)
 
-    return model, scaler
+with open("artifacts/logistic_regression_scaler.pkl", "rb") as f:
+    scaler = pickle.load(f)
 
-def preprocess_input(input_string, model_type, scaler):
-    # Define the feature columns (excluding StudentID, GPA, and GradeClass)
-    columns = ["Age", "Gender", "Ethnicity", "ParentalEducation", "StudyTimeWeekly", "Absences", 
-               "Tutoring", "ParentalSupport", "Extracurricular", "Sports", "Music", "Volunteering"]
-    
-    # Split and slice the input (remove ID, GPA, GradeClass)
-    values = input_string.split(',')[1:-2]
-    input_data = {columns[i]: float(values[i]) for i in range(len(columns))}
-    
-    df = pd.DataFrame([input_data])
+# Load ran models
+with open("artifacts/random_forest_models.pkl", "rb") as f:
+    ran_models = pickle.load(f)
 
-    # Scale only for regression and xgboost (which was scaled during training)
-    if model_type in ["regression", "deep_learning"] or model_type == "xgboost":
-        _, scaler = load_model_and_scaler("regression")
-        df_scaled = scaler.transform(df)
-        return df_scaled
-    return df  # Random Forest uses raw features
+# Load XGB
+with open("artifacts/xgboost_model_RainTomorrow.pkl", "rb") as f:
+    xgboost_model_rain = pickle.load(f)
 
-def predict_grade(input_string, model_type="regression"):
-    # Load model and scaler
-    model, scaler = load_model_and_scaler(model_type)
+with open("artifacts/xgboost_model_TempCategory.pkl", "rb") as f:
+    xgboost_model_temp = pickle.load(f)
 
-    # Preprocess input
-    input_processed = preprocess_input(input_string, model_type, scaler)
+# Mapping for predictions
+rain_map = {0: "no", 1: "yes"}
+temp_map = {0: "very cold", 1: "cold", 2: "medium", 3: "warm", 4: "very warm"}
 
-    # Predict
-    if model_type == "deep_learning":
-        # Deep Learning model outputs probabilities, so take the class with the highest probability
-        predicted_probs = model.predict(input_processed)
-        predicted_class = np.argmax(predicted_probs, axis=1)[0]
-    else:
-        # Other models directly predict the class
-        predicted_class = model.predict(input_processed)[0]
+# Input string
+input_string = "2015-07-28,Watsonia,7.3,14.6,0.0,1.8,8.1,W,24.0,WSW,SSW,7.0,11.0,91.0,68.0,1035.3,1033.3,2.0,6.0,9.3,12.5,No,No,12.3,0.6,59.0,1.2000000000000035,10.833333333333343,7,209,-0.4405187843504952,-0.8977433935342336,850.0,10.95,Very Cold"
 
-    # Map class to letter grade
-    grade_map = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'F'}
-    return grade_map[predicted_class]
+# Define columns
+columns = ["Date", "Location", "MinTemp", "MaxTemp","Rainfall", "Evaporation", "Sunshine", 
+           "WindGustDir", "WindGustSpeed", "WindDir9am", "WindDir3pm", "WindSpeed9am", 
+           "WindSpeed3pm", "Humidity9am", "Humidity3pm", "Pressure9am", "Pressure3pm", 
+           "Cloud9am", "Cloud3pm", "Temp9am", "Temp3pm", "RainToday", "RainTomorrow", 
+           "Temp3pm_lag1", "Rainfall_lag1", "Humidity3pm_lag1", "Rainfall_roll3", 
+           "Temp3pm_roll3", "Month", "DayOfYear", "Day_sin", "Day_cos", 
+           "TempHumidInteraction", "DayAvgTemp", "TempCategory"]
 
-# Example usage
-print("Predicted grade with Logistic Regression:", predict_grade(student_input, "regression"))
-print("Predicted grade with Random Forest:", predict_grade(student_input, "random_forest"))
-print("Predicted grade with XGBoost:", predict_grade(student_input, "xgboost"))
-print("Predicted grade with Deep Learning:", predict_grade(student_input, "deep_learning"))
+# Parse input
+values = input_string.split(",")
+df_input = pd.DataFrame([values], columns=columns)
+
+# Drop target labels (not features)
+df_input = df_input.drop(columns=["TempCategory", "RainTomorrow", "DayAvgTemp", "MinTemp", "MaxTemp", "Temp3pm", "Temp9am"])
+
+# Encode categoricals
+for col in df_input.select_dtypes(include="object").columns:
+    df_input[col] = df_input[col].astype("category").cat.codes
+
+# Convert to correct numeric type
+df_input = df_input.apply(pd.to_numeric, errors='coerce')
+
+# Scale
+x_scaled = scaler.transform(df_input)
+
+# Predict RainTomorrow
+log_pred_rain = log_models["RainTomorrow"].predict(x_scaled)[0]
+ran_pred_rain = ran_models["RainTomorrow"].predict(x_scaled)[0]
+xgb_pred_rain = xgboost_model_rain.predict(x_scaled)[0]
+
+# Predict TempCategory
+log_pred_temp = log_models["TempCategory"].predict(x_scaled)[0]
+ran_pred_temp = ran_models["TempCategory"].predict(x_scaled)[0]
+xgb_pred_temp = xgboost_model_temp.predict(x_scaled)[0]
+
+print("RainTomorrow Predictions")
+print("Logistic Regression:", rain_map[log_pred_rain])
+print("Random Forest:", rain_map[ran_pred_rain])
+print("XGBoost:", rain_map[xgb_pred_rain])
+
+print("\nTempCategory Predictions")
+print("Logistic Regression:", temp_map[log_pred_temp])
+print("Random Forest:", temp_map[ran_pred_temp])
+print("XGBoost:", temp_map[xgb_pred_temp])

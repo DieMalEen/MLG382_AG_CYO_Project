@@ -8748,7 +8748,7 @@ no,cold,no,very cold,True,False
 no,very warm,no,warm,True,False
 no,very warm,no,warm,True,False
 no,very warm,no,warm,True,False
-no,cold,no,very cold,True,False
+no,cold,no,medium,True,False
 no,cold,no,very cold,True,False
 no,cold,no,medium,True,False
 no,warm,no,very warm,True,False
