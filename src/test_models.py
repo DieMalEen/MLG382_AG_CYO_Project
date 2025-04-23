@@ -60,9 +60,9 @@ ran_pred_rain = ran_models["RainTomorrow"].predict(x_scaled)[0]
 xgb_pred_rain = xgboost_model_rain.predict(x_scaled)[0]
 
 print("RainTomorrow Predictions")
-print("Logistic Regression:", rain_map[log_pred_rain])
-print("Random Forest:", rain_map[ran_pred_rain])
-print("XGBoost:", rain_map[xgb_pred_rain])
+print("Logistic Regression:\t", rain_map[log_pred_rain])
+print("Random Forest:\t\t", rain_map[ran_pred_rain])
+print("XGBoost:\t\t", rain_map[xgb_pred_rain])
 
 # Predict TempCategory
 log_pred_temp = log_models["TempCategory"].predict(x_scaled)[0]
@@ -70,6 +70,6 @@ ran_pred_temp = ran_models["TempCategory"].predict(x_scaled)[0]
 xgb_pred_temp = xgboost_model_temp.predict(x_scaled)[0]
 
 print("\nTempCategory Predictions")
-print("Logistic Regression:", temp_map[log_pred_temp])
-print("Random Forest:", temp_map[ran_pred_temp])
-print("XGBoost:", temp_map[xgb_pred_temp])
+print("Logistic Regression:\t", temp_map[log_pred_temp])
+print("Random Forest:\t\t", temp_map[ran_pred_temp])
+print("XGBoost:\t\t", temp_map[xgb_pred_temp])
