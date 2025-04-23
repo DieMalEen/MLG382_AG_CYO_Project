@@ -3,12 +3,12 @@ from dash import dcc, html, Input, Output, State
 import pandas as pd
 import pickle
 import torch
-import numpy as np
+import torch.nn as nn
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 import dash_bootstrap_components as dbc
-from datetime import datetime
-from sklearn.preprocessing import LabelEncoder
-
+import numpy as np
 import os
+from datetime import datetime
 
 # Load artifacts
 with open("artifacts/logistic_regression_models.pkl", "rb") as f:
@@ -19,6 +19,36 @@ with open("artifacts/rain_encoder.pkl", "rb") as f:
     rain_encoder = pickle.load(f)
 with open("artifacts/temp_encoder.pkl", "rb") as f:
     temp_encoder = pickle.load(f)
+    
+with open("artifacts/random_forest_models.pkl", "rb") as f:
+    rf_models = pickle.load(f)
+with open("artifacts/xgboost_model_RainTomorrow.pkl", "rb") as f:
+    xgboost_model_rain = pickle.load(f)
+with open("artifacts/xgboost_model_TempCategory.pkl", "rb") as f:
+    xgboost_model_temp = pickle.load(f)
+
+# Define the Deep Learning model (Dual Output Model)
+class DualOutputNN(nn.Module):
+    def __init__(self, input_size, rain_classes, temp_classes):
+        super(DualOutputNN, self).__init__()
+        self.fc1 = nn.Linear(input_size, 64)
+        self.dropout1 = nn.Dropout(0.3)
+        self.fc2 = nn.Linear(64, 32)
+        self.dropout2 = nn.Dropout(0.3)
+        self.out_rain = nn.Linear(32, rain_classes)
+        self.out_temp = nn.Linear(32, temp_classes)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.dropout1(x)
+        x = torch.relu(self.fc2(x))
+        x = self.dropout2(x)
+        return self.out_rain(x), self.out_temp(x)
+
+# Load the deep learning model
+#deep_learning_model = DualOutputNN(input_size=26, rain_classes=2, temp_classes=5)  # Example sizes, adjust input_size
+#deep_learning_model.load_state_dict(torch.load("artifacts/weather_deep_model.pth"))
+#deep_learning_model.eval()  # Set model to evaluation mode
 
 # Define input features (excluding engineered features)
 user_input_features = [
@@ -48,31 +78,25 @@ app.layout = dbc.Container([
     html.H2("Weather Prediction App", className="text-center my-4"),
 
     dbc.Row([
-        dbc.Col([
-            html.Label("Date"),
-            dcc.DatePickerSingle(
-                id="input-Date",
-                placeholder="Select a date",
-                display_format="YYYY-MM-DD",
-                className="form-control"
-            )
-        ], width=6)
-    ], className="mb-4"),
-
-    dbc.Row([
-        dbc.Col([
+        dbc.Col([ 
             html.Label(f"{feature}"),
-            dcc.Dropdown(
-                id=f"input-{feature}",
-                options=[{"label": v, "value": v} for v in categorical_inputs[feature]],
-                className="form-control"
-            )
-        ]) if feature in categorical_inputs else dbc.Col([
+            dcc.Dropdown(options=[{"label": v, "value": v} for v in categorical_inputs[feature]], id=f"input-{feature}")
+        ]) if feature in categorical_inputs else dbc.Col([ 
             html.Label(f"{feature}"),
             dcc.Input(type="number", id=f"input-{feature}", placeholder=f"Enter {feature}", className="form-control")
         ])
         for feature in user_input_features if feature != "Date"
     ], className="mb-4", style={"columnCount": 2}),
+
+    dbc.Col([
+        html.Label("Date"),
+        dcc.DatePickerSingle(
+            id="input-Date",
+            placeholder="Select a date",
+            display_format="YYYY-MM-DD",
+            className="form-control"
+        )
+    ]),
 
     dbc.Button("Predict", id="predict-button", color="primary", className="mb-3 w-100"),
 
@@ -142,11 +166,44 @@ def predict(n_clicks, date, *values):
     print("Current order :", df.columns.tolist())
     df_scaled = logreg_scaler.transform(df)
     
-    # Predict
-    rain_pred = logreg_models["RainTomorrow"].predict(df_scaled)[0]
-    temp_pred = logreg_models["TempCategory"].predict(df_scaled)[0]
+    # Logistic Regression Prediction
+    logreg_rain_pred = logreg_models["RainTomorrow"].predict(df_scaled)[0]
+    logreg_temp_pred = logreg_models["TempCategory"].predict(df_scaled)[0]
 
-    return f"Rain Tomorrow: {rain_encoder.inverse_transform([rain_pred])[0]} | Temperature: {temp_encoder.inverse_transform([temp_pred])[0]}"
+    # Random Forest Prediction
+    rf_rain_pred = rf_models["RainTomorrow"].predict(df_scaled)[0]
+    rf_temp_pred = rf_models["TempCategory"].predict(df_scaled)[0]
+
+    # XGBoost Prediction
+    xgb_rain_pred = xgboost_model_rain.predict(df_scaled)[0]
+    xgb_temp_pred = xgboost_model_temp.predict(df_scaled)[0]
+
+    # Deep Learning Prediction (ensure the model is evaluated properly)
+    #with torch.no_grad():
+        #deep_input_tensor = torch.tensor(df_scaled, dtype=torch.float32)
+        #deep_rain_pred = deep_learning_model(deep_input_tensor).argmax().item()
+        #deep_temp_pred = deep_learning_model(deep_input_tensor).argmax().item()
+
+    # Decode predictions
+    rain_predictions = {
+        "Logistic Regression": rain_encoder.inverse_transform([logreg_rain_pred])[0],
+        "Random Forest Rain": rain_encoder.inverse_transform([rf_rain_pred])[0],
+        "XGBoost": rain_encoder.inverse_transform([xgb_rain_pred])[0],
+        #"Deep Learning": rain_encoder.inverse_transform([deep_rain_pred])[0]
+    }
+
+    temp_predictions = {
+        "Logistic Regression": temp_encoder.inverse_transform([logreg_temp_pred])[0],
+        "Random Forest Temp": temp_encoder.inverse_transform([rf_temp_pred])[0],
+        "XGBoost": temp_encoder.inverse_transform([xgb_temp_pred])[0],
+        #"Deep Learning": temp_encoder.inverse_transform([deep_temp_pred])[0]
+    }
+
+    # Display all predictions
+    rain_output = " | ".join([f"{model}: {prediction}" for model, prediction in rain_predictions.items()])
+    temp_output = " | ".join([f"{model}: {prediction}" for model, prediction in temp_predictions.items()])
+
+    return f"Rain Tomorrow: {rain_output} | Temperature: {temp_output}"
 
 
 if __name__ == "__main__":
