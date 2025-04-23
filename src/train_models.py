@@ -51,6 +51,10 @@ def prepare_data(train, test):
 
 def run_logistic_regression(x_train, y_train, x_test, y_test):
     scaler = StandardScaler()
+    
+    with open("artifacts/feature_order.pkl", "wb") as f:
+        pickle.dump(x_train.columns.tolist(), f)
+        
     x_train_scaled = scaler.fit_transform(x_train)
     x_test_scaled = scaler.transform(x_test)
 
