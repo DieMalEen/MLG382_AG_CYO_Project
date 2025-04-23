@@ -1,0 +1,9 @@
+pandas
+matplotlib
+scikit-learn
+xgboost
+seaborn
+numpy
+pytorch
+dash
+gunicorn
